@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -256,6 +258,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
         while (true) {
             try {
                 // Start a scan
+                @Suppress("DEPRECATION")
                 val started = wm.startScan()
                 if (!started) {
                     // Scan rate limited; will succeed eventually
@@ -291,6 +294,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
 
             // Filter and deduplicate results
             val connectedBssid = connectionInfo?.bssid ?: ""
+            @Suppress("DEPRECATION")
             scanResults = results
                 .filter { it.SSID.isNotEmpty() }
                 .distinctBy { it.BSSID }
@@ -307,6 +311,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
             // Auto-select first if none selected
             if (selectedNetwork == null && scanResults.isNotEmpty()) {
                 val first = scanResults.first()
+                @Suppress("DEPRECATION")
                 selectedNetwork = WiFiNetwork(
                     ssid = first.SSID,
                     bssid = first.BSSID,
@@ -325,7 +330,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
     // ── Process scanResults into WiFiNetwork list ──
     val networks = remember(scanResults, connectionInfo, bandFilter, sortMode, searchQuery) {
         val connectedBssid = connectionInfo?.bssid ?: ""
-        var list = scanResults.map { result ->
+        var list = @Suppress("DEPRECATION") scanResults.map { result ->
             WiFiNetwork(
                 ssid = result.SSID,
                 bssid = result.BSSID,
@@ -371,6 +376,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
             BandFilter.GHZ_6 -> scanResults.filter { it.frequency >= 5955 }
         }
         // Group by channel
+        @Suppress("DEPRECATION")
         results
             .filter { it.SSID.isNotEmpty() }
             .groupBy { frequencyToChannel(it.frequency) }
@@ -412,7 +418,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                     }
                 },
                 actions = {
@@ -420,6 +426,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
                         isScanning = !isScanning
                         if (isScanning) {
                             // Force a scan by toggling
+                            @Suppress("DEPRECATION")
                             wifiManager?.startScan()
                         }
                     }) {
@@ -430,6 +437,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
                         )
                     }
                     IconButton(onClick = {
+                        @Suppress("DEPRECATION")
                         wifiManager?.startScan()
                     }) {
                         Icon(
@@ -599,7 +607,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = when (tab) {
-                                        AnalyzerTab.LIST -> Icons.Default.List
+                                        AnalyzerTab.LIST -> Icons.AutoMirrored.Filled.List
                                         AnalyzerTab.CHANNEL_GRAPH -> Icons.Default.BarChart
                                         AnalyzerTab.DETAILS -> Icons.Default.Info
                                     },
@@ -1010,7 +1018,7 @@ private fun NetworkCard(
     onClick: () -> Unit
 ) {
     val level = rssiToLevel(network.rssi)
-    val (startGradient, endGradient) = signalGradient(network.rssi)
+    val (_, endGradient) = signalGradient(network.rssi)
     val securityType = getSecurityType(network.capabilities)
     val channel = frequencyToChannel(network.frequency)
     val bandLabel = getBandLabel(network.frequency)

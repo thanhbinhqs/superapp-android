@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -350,7 +351,7 @@ fun StopwatchScreen(navController: NavController) {
                     },
                     navigationIcon = {
                         IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                         }
                     },
                     actions = {
@@ -1317,7 +1318,6 @@ private fun IntervalTimerModeContent(
                 restMs = restMs,
                 isWorkPhase = isWorkPhase,
                 isRunning = isRunning,
-                formatTime = formatTime,
                 formatCountdown = formatCountdown,
                 onPause = onPause,
                 onResume = onResume,
@@ -1673,7 +1673,6 @@ private fun IntervalActive(
     restMs: Long,
     isWorkPhase: Boolean,
     isRunning: Boolean,
-    formatTime: (Long) -> String,
     formatCountdown: (Long) -> String,
     onPause: () -> Unit,
     onResume: () -> Unit,
