@@ -83,11 +83,117 @@ enum class SortMode(val label: String) {
     BY_SIGNAL("Theo tín hiệu")
 }
 
-enum class AnalyzerTab(val label: String) {
-    LIST("Danh Sách"),
-    CHANNEL_GRAPH("Biểu Đồ Kênh"),
-    DETAILS("Chi Tiết")
+@Suppress("DEPRECATION")
+enum class AnalyzerTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    CHANNEL_GRAPH("Kênh", Icons.Default.BarChart),
+    SPECTRUM("Phổ", Icons.Default.ShowChart),
+    BEST_CHANNELS("Gợi ý", Icons.Default.Star),
+    ACCESS_POINTS("AP", Icons.Default.TrackChanges),
+    DETAILS("Chi Tiết", Icons.Default.Info)
 }
+
+// ── Channel Analysis Data ──
+
+data class ChannelAnalysis(
+    val channel: Int,
+    val totalNetworks: Int,
+    val congestionPercent: Int,
+    val isBest: Boolean = false,
+    val isConnectedHere: Boolean = false,
+    val networks: List<WiFiNetwork> = emptyList()
+)
+
+data class BestChannelResult(
+    val channel: Int,
+    val score: Int, // 0-100
+    val label: String,
+    val description: String
+)
+
+// ── Manufacturer OUI database (common ones) ──
+private val OUI_MAP = mapOf(
+    "08:40:f3" to "Tenda",
+    "00:1a:6b" to "TP-Link",
+    "00:1e:2a" to "TP-Link",
+    "00:23:cd" to "TP-Link",
+    "08:10:76" to "TP-Link",
+    "10:f6:81" to "TP-Link",
+    "2c:b0:5d" to "TP-Link",
+    "34:e8:94" to "TP-Link",
+    "50:c7:bf" to "TP-Link",
+    "5c:9a:d8" to "TP-Link",
+    "60:32:b1" to "TP-Link",
+    "64:66:b3" to "TP-Link",
+    "68:72:51" to "TP-Link",
+    "70:3a:cb" to "TP-Link",
+    "70:8b:cd" to "TP-Link",
+    "7c:d1:c3" to "TP-Link",
+    "84:3d:c6" to "TP-Link",
+    "90:cc:24" to "TP-Link",
+    "94:d9:b3" to "TP-Link",
+    "a0:f3:c1" to "TP-Link",
+    "b0:95:75" to "TP-Link",
+    "b0:be:76" to "TP-Link",
+    "c0:4a:00" to "TP-Link",
+    "c8:3a:35" to "TP-Link",
+    "d4:9a:20" to "TP-Link",
+    "e0:cc:7a" to "TP-Link",
+    "e8:de:27" to "TP-Link",
+    "f4:ec:38" to "TP-Link",
+    "00:0c:43" to "Linksys",
+    "00:14:bf" to "Linksys",
+    "00:1a:70" to "Linksys",
+    "00:21:29" to "Linksys",
+    "58:6d:8f" to "Linksys",
+    "c0:56:e3" to "Linksys",
+    "84:c9:b2" to "Xiaomi",
+    "f4:d1:08" to "Xiaomi",
+    "18:fe:34" to "Huawei",
+    "24:69:68" to "Huawei",
+    "38:59:f9" to "Huawei",
+    "00:1b:10" to "Asus",
+    "10:bf:48" to "Asus",
+    "2c:4d:54" to "Asus",
+    "74:d0:2b" to "Asus",
+    "90:5c:44" to "Asus",
+    "9c:5c:8e" to "Asus",
+    "b0:6a:2a" to "Asus",
+    "b0:c4:de" to "Asus",
+    "d4:5d:64" to "Asus",
+    "08:e6:89" to "Samsung",
+    "f0:25:b7" to "Samsung",
+    "00:03:7f" to "Intel",
+    "00:15:00" to "Intel",
+    "1c:69:7a" to "Intel",
+    "3c:7c:3f" to "Intel",
+    "b4:96:82" to "Intel",
+    "f8:2f:7a" to "Intel",
+    "00:1d:d0" to "Apple",
+    "04:d4:c4" to "Apple",
+    "34:36:3b" to "Apple",
+    "8c:7b:9d" to "Apple",
+    "e0:ac:cb" to "Apple",
+    "f0:9e:9a" to "Apple",
+    "00:17:f2" to "Cisco",
+    "00:1a:a1" to "Cisco",
+    "00:1d:a2" to "Cisco",
+    "10:7b:44" to "Netgear",
+    "2c:33:11" to "Netgear",
+    "6c:b0:ce" to "Netgear",
+    "78:d2:94" to "Netgear",
+    "a0:14:3d" to "Netgear",
+    "ac:22:0b" to "Netgear",
+    "b0:48:7a" to "Netgear",
+    "e0:91:53" to "Netgear",
+    "f0:b4:29" to "Netgear",
+    "74:ac:b9" to "D-Link",
+    "78:54:2e" to "D-Link",
+    "c0:3f:0e" to "D-Link",
+    "28:10:7b" to "Google",
+    "48:8e:e2" to "Google",
+    "a0:e9:db" to "Google",
+    "b4:45:06" to "Google",
+)
 
 // ── Helper functions ──
 
@@ -190,6 +296,157 @@ private fun getDeviceIpAddress(): String {
     return "N/A"
 }
 
+/**
+ * Get manufacturer from BSSID (first 3 octets = OUI)
+ */
+private fun getManufacturer(bssid: String): String? {
+    if (bssid.length < 8) return null
+    val oui = bssid.trim().uppercase().take(8)
+    // Handle both XX:XX:XX and xxxx:xxxx:xxxx formats
+    val normalized = if (oui.contains(':')) oui else {
+        oui.chunked(2).joinToString(":")
+    }
+    return OUI_MAP[normalized]
+}
+
+/**
+ * Detect WiFi generation from capabilities string
+ */
+private fun getWifiGeneration(capabilities: String): Pair<String, Color> {
+    val cap = capabilities.uppercase()
+    return when {
+        cap.contains("WIFI6") || cap.contains("HE") || cap.contains("802.11AX") -> "WiFi 6" to Color(0xFF1565C0)
+        cap.contains("WIFI5") || cap.contains("VHT") || cap.contains("802.11AC") -> "WiFi 5" to Color(0xFF00BCD4)
+        cap.contains("WIFI4") || cap.contains("HT") || cap.contains("802.11N") -> "WiFi 4" to Color(0xFF4CAF50)
+        cap.contains("802.11A") || cap.contains("802.11G") -> "WiFi 3" to Color(0xFFFF9800)
+        else -> "Legacy" to Color(0xFF9E9E9E)
+    }
+}
+
+/**
+ * Estimate channel width from capabilities string (MHz)
+ */
+private fun getChannelWidth(capabilities: String): Int {
+    val cap = capabilities.uppercase()
+    return when {
+        cap.contains("VHT160") || cap.contains("160MHZ") -> 160
+        cap.contains("VHT80") || cap.contains("80MHZ") -> 80
+        cap.contains("VHT40") || cap.contains("40MHZ") || cap.contains("HT40") -> 40
+        cap.contains("VHT20") || cap.contains("20MHZ") || cap.contains("HT20") -> 20
+        else -> 20
+    }
+}
+
+/**
+ * Estimate distance from signal strength (dBm) using free-space path loss model
+ * Returns approximate distance in meters
+ */
+private fun estimateDistance(rssi: Int, freqMHz: Int): Float {
+    // Using simplified FSPL model: distance = 10^((TxPower - RSSI - 20*log10(f) + 27.55) / 20)
+    // Assume TxPower = 20 dBm for typical router
+    val txPower = 20.0
+    val freqGHz = freqMHz / 1000.0
+    if (freqGHz <= 0) return 0f
+    val pathLoss = txPower - rssi
+    val distanceMeters = Math.pow(10.0, (pathLoss - 20 * Math.log10(freqGHz) - 27.55) / 20.0)
+    return (distanceMeters).toFloat().coerceIn(0.1f, 100f)
+}
+
+/**
+ * Get distance label in human-readable format
+ */
+private fun getDistanceLabel(meters: Float): String {
+    return when {
+        meters < 1f -> "<1m"
+        meters < 10f -> "${meters.toInt()}m"
+        meters < 100f -> "${meters.toInt()}m"
+        else -> ">100m"
+    }
+}
+
+/**
+ * Analyze all channels and return sorted analysis with recommendations
+ */
+private fun analyzeChannels(networks: List<WiFiNetwork>, connectedBssid: String): List<ChannelAnalysis> {
+    if (networks.isEmpty()) return emptyList()
+
+    // Group networks by channel
+    val byChannel = networks.groupBy { frequencyToChannel(it.frequency) }
+
+    val allChannels = byChannel.entries.map { (ch, nets) ->
+        ChannelAnalysis(
+            channel = ch,
+            totalNetworks = nets.size,
+            congestionPercent = minOf(100, (nets.size * 100) / maxOf(1, byChannel.size)),
+            isConnectedHere = nets.any { it.bssid == connectedBssid },
+            networks = nets
+        )
+    }
+
+    return allChannels.sortedBy { it.channel }
+}
+
+/**
+ * Get possible channels for a frequency band
+ */
+private fun getBandChannels(freqMHz: Int): List<Int> {
+    return when {
+        freqMHz < 2500 -> (1..13).toList()
+        freqMHz < 6000 -> listOf(36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165)
+        else -> (1..233).filter { it % 4 == 1 } // 6 GHz channels
+    }
+}
+
+/**
+ * Find the best channel recommendations
+ */
+private fun findBestChannels(
+    networks: List<WiFiNetwork>,
+    connectedBssid: String,
+    preferredBand: String = "5"
+): List<BestChannelResult> {
+    if (networks.isEmpty()) return emptyList()
+
+    val bandFiltered = if (preferredBand == "5") {
+        networks.filter { it.frequency in 4900..6000 }
+    } else if (preferredBand == "2.4") {
+        networks.filter { it.frequency < 2500 }
+    } else networks
+
+    if (bandFiltered.isEmpty()) return emptyList()
+
+    val bandChannels = getBandChannels(bandFiltered.firstOrNull()?.frequency ?: 5180)
+    val activeNets = bandFiltered.groupBy { frequencyToChannel(it.frequency) }
+
+    val results = bandChannels.map { ch ->
+        val nets = activeNets[ch] ?: emptyList()
+        val congestion = nets.size
+        // Score: fewer networks = higher score
+        // Also consider signal strength of connected network
+        val connectedNet = nets.find { it.bssid == connectedBssid }
+        val connectedBonus = if (connectedNet != null) 5 else 0
+        val signalPenalty = if (connectedNet != null && connectedNet.rssi < -70) -10 else 0
+        val rawScore = maxOf(0, 100 - (congestion * 15) + connectedBonus + signalPenalty)
+
+        val (label, desc) = when {
+            rawScore >= 85 -> "Tuyệt vời" to "Kênh sạch — không bị chồng lấn"
+            rawScore >= 65 -> "Tốt" to "Ít nhiễu — khả dụng"
+            rawScore >= 45 -> "Trung bình" to "Một số mạng chồng lấn"
+            rawScore >= 25 -> "Đông đúc" to "Nhiều mạng chồng lấn"
+            else -> "Quá tải" to "Rất nhiều mạng trên kênh này"
+        }
+
+        BestChannelResult(
+            channel = ch,
+            score = rawScore.coerceIn(0, 100),
+            label = label,
+            description = "$desc · ${nets.size} mạng gần đây"
+        )
+    }
+
+    return results.sortedByDescending { it.score }
+}
+
 // ── Composable ──
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -202,7 +459,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
     var scanResults by remember { mutableStateOf<List<ScanResult>>(emptyList()) }
     var connectionInfo by remember { mutableStateOf<ConnectionInfo?>(null) }
     var selectedNetwork by remember { mutableStateOf<WiFiNetwork?>(null) }
-    var selectedTab by remember { mutableStateOf(AnalyzerTab.LIST) }
+    var selectedTab by remember { mutableStateOf(AnalyzerTab.CHANNEL_GRAPH) }
     var bandFilter by remember { mutableStateOf(BandFilter.ALL) }
     var sortMode by remember { mutableStateOf(SortMode.BY_SIGNAL) }
     var searchQuery by remember { mutableStateOf("") }
@@ -381,20 +638,92 @@ fun WiFiAnalyzerScreen(navController: NavController) {
 
     // ── Channel data for graph ──
     val channelData = remember(scanResults, bandFilter) {
-        // Collect all networks for channel graph (filter by band)
         val results = when (bandFilter) {
             BandFilter.ALL -> scanResults
             BandFilter.GHZ_2_4 -> scanResults.filter { it.frequency < 2500 }
             BandFilter.GHZ_5 -> scanResults.filter { it.frequency in 4900..6000 }
             BandFilter.GHZ_6 -> scanResults.filter { it.frequency >= 5955 }
         }
-        // Group by channel
         @Suppress("DEPRECATION")
         results
             .filter { it.SSID.isNotEmpty() }
             .groupBy { frequencyToChannel(it.frequency) }
             .mapValues { it.value.size }
             .toSortedMap()
+    }
+
+    // ── Enhanced channel analysis ──
+    val connectedBssid = connectionInfo?.bssid ?: ""
+    val channelAnalysis = remember(networks, connectedBssid) {
+        analyzeChannels(networks, connectedBssid)
+    }
+    val bestChannels = remember(networks, connectedBssid, bandFilter) {
+        val band = when (bandFilter) {
+            BandFilter.ALL -> "5"
+            BandFilter.GHZ_2_4 -> "2.4"
+            BandFilter.GHZ_5 -> "5"
+            BandFilter.GHZ_6 -> "6"
+        }
+        findBestChannels(networks, connectedBssid, band)
+    }
+
+    // ── Networks for spectrum view (with signal data) ──
+    val spectrumNetworks = remember(scanResults, bandFilter) {
+        val results = when (bandFilter) {
+            BandFilter.ALL -> scanResults
+            BandFilter.GHZ_2_4 -> scanResults.filter { it.frequency < 2500 }
+            BandFilter.GHZ_5 -> scanResults.filter { it.frequency in 4900..6000 }
+            BandFilter.GHZ_6 -> scanResults.filter { it.frequency >= 5955 }
+        }
+        @Suppress("DEPRECATION")
+        results.filter { it.SSID.isNotEmpty() }.distinctBy { it.BSSID }
+    }
+
+    // ── Tab content based on selected tab ──
+    val tabContent: @Composable () -> Unit = {
+        when (selectedTab) {
+            AnalyzerTab.CHANNEL_GRAPH -> {
+                ChannelGraphTab(
+                    channelData = channelData,
+                    bandFilter = bandFilter,
+                    onBandFilterChange = { bandFilter = it }
+                )
+            }
+            AnalyzerTab.SPECTRUM -> {
+                SpectrumTab(
+                    networks = spectrumNetworks,
+                    bandFilter = bandFilter,
+                    onBandFilterChange = { bandFilter = it }
+                )
+            }
+            AnalyzerTab.BEST_CHANNELS -> {
+                BestChannelsTab(
+                    bestChannels = bestChannels,
+                    channelAnalysis = channelAnalysis,
+                    connectionInfo = connectionInfo,
+                    bandFilter = bandFilter,
+                    onBandFilterChange = { bandFilter = it }
+                )
+            }
+            AnalyzerTab.ACCESS_POINTS -> {
+                AccessPointsTab(
+                    networks = networks,
+                    selectedNetwork = selectedNetwork,
+                    onNetworkClick = { network ->
+                        selectedNetwork = if (selectedNetwork?.bssid == network.bssid) {
+                            null
+                        } else network
+                    }
+                )
+            }
+            AnalyzerTab.DETAILS -> {
+                DetailsTab(
+                    selectedNetwork = selectedNetwork,
+                    connectionInfo = connectionInfo,
+                    networks = networks
+                )
+            }
+        }
     }
 
     // ── Main UI ──
@@ -606,7 +935,7 @@ fun WiFiAnalyzerScreen(navController: NavController) {
                 totalCount = scanResults.size
             )
 
-            // ── Tab Row ──
+            // ── Tab Row (5 tabs with icons) ──
             TabRow(
                 selectedTabIndex = selectedTab.ordinal,
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -616,52 +945,33 @@ fun WiFiAnalyzerScreen(navController: NavController) {
                     Tab(
                         selected = selectedTab == tab,
                         onClick = { selectedTab = tab },
+                        icon = {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.label,
+                                tint = if (selectedTab == tab) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
                         text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = when (tab) {
-                                        AnalyzerTab.LIST -> Icons.AutoMirrored.Filled.List
-                                        AnalyzerTab.CHANNEL_GRAPH -> Icons.Default.BarChart
-                                        AnalyzerTab.DETAILS -> Icons.Default.Info
-                                    },
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(tab.label, fontSize = 13.sp)
-                            }
+                            Text(
+                                tab.label,
+                                fontSize = 10.sp,
+                                fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal
+                            )
                         }
                     )
                 }
             }
 
             // ── Tab Content ──
-            when (selectedTab) {
-                AnalyzerTab.LIST -> {
-                    NetworkListTab(
-                        networks = networks,
-                        selectedNetwork = selectedNetwork,
-                        onNetworkClick = { network ->
-                            selectedNetwork = if (selectedNetwork?.bssid == network.bssid) {
-                                null // deselect
-                            } else network
-                        }
-                    )
-                }
-                AnalyzerTab.CHANNEL_GRAPH -> {
-                    ChannelGraphTab(
-                        channelData = channelData,
-                        bandFilter = bandFilter,
-                        onBandFilterChange = { bandFilter = it }
-                    )
-                }
-                AnalyzerTab.DETAILS -> {
-                    DetailsTab(
-                        selectedNetwork = selectedNetwork,
-                        connectionInfo = connectionInfo,
-                        networks = networks
-                    )
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+            ) {
+                tabContent()
             }
         }
     }
@@ -1470,8 +1780,871 @@ private fun MeterInfoItem(label: String, value: String) {
 }
 
 // ──────────────────────────────────────────────────────────────────
-//  Channel Graph Tab
+//  Spectrum Tab — parabolic signal curves over channel grid
 // ──────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SpectrumTab(
+    networks: List<android.net.wifi.ScanResult>,
+    bandFilter: BandFilter,
+    onBandFilterChange: (BandFilter) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Band selector
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            BandFilter.entries.forEach { band ->
+                FilterChip(
+                    selected = bandFilter == band,
+                    onClick = { onBandFilterChange(band) },
+                    label = { Text(band.label, fontSize = 11.sp) },
+                    modifier = Modifier.height(28.dp),
+                    shape = RoundedCornerShape(6.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Spectrum Card
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Phổ Tín Hiệu",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = "Cường độ tín hiệu theo kênh (dBm)",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Spectrum canvas with parabolic curves
+                if (networks.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(260.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Không có dữ liệu",
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
+                    }
+                } else {
+                    SpectrumCanvas(networks = networks)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Legend
+        if (networks.isNotEmpty()) {
+            Text(
+                text = "Mạng phát hiện",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            networks.take(8).forEach { result ->
+                @Suppress("DEPRECATION")
+                SpectrumLegendItem(result = result)
+            }
+            if (networks.size > 8) {
+                Text(
+                    text = "+${networks.size - 8} mạng khác",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun SpectrumCanvas(networks: List<android.net.wifi.ScanResult>) {
+    val maxSignal = networks.maxOfOrNull { it.level.toFloat() } ?: -30f
+    val minSignal = networks.minOfOrNull { it.level.toFloat() } ?: -90f
+    val signalRange = maxOf(1f, maxSignal - minSignal)
+
+    // Get unique channels in sorted order
+    val channels = networks.map { frequencyToChannel(it.frequency) }.distinct().sorted()
+    val minCh = channels.firstOrNull() ?: 1
+    val maxCh = channels.lastOrNull() ?: 165
+    val chRange = maxOf(1, maxCh - minCh)
+
+    // Colors for curves
+    val colors = listOf(
+        Color(0xFF00BCD4), Color(0xFFFF6D00), Color(0xFF7C4DFF),
+        Color(0xFF4CAF50), Color(0xFFE91E63), Color(0xFFFFD600),
+        Color(0xFF2196F3), Color(0xFFFF5722)
+    )
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp)
+    ) {
+        val chartPadding = 48.dp.toPx()
+        val chartWidth = size.width - chartPadding - 16.dp.toPx()
+        val chartHeight = size.height - 50.dp.toPx()
+        val topPadding = 16.dp.toPx()
+
+        // ── Draw grid lines ──
+        for (i in 0..4) {
+            val y = topPadding + (chartHeight * i / 4f)
+            drawLine(
+                color = Color(0xFF333333),
+                start = Offset(chartPadding, y),
+                end = Offset(size.width - 8.dp.toPx(), y),
+                strokeWidth = 1f
+            )
+            // dBm labels
+            val dbm = (minSignal + signalRange * (4 - i) / 4f).toInt()
+            drawContext.canvas.nativeCanvas.drawText(
+                "$dbm",
+                4.dp.toPx(),
+                y + 4.dp.toPx(),
+                android.graphics.Paint().apply {
+                    color = android.graphics.Color.GRAY
+                    textSize = 9.dp.toPx()
+                    textAlign = android.graphics.Paint.Align.LEFT
+                }
+            )
+        }
+
+        // ── Draw channel labels on X-axis ──
+        channels.forEach { ch ->
+            val x = chartPadding + ((ch - minCh).toFloat() / chRange) * chartWidth
+            drawContext.canvas.nativeCanvas.drawText(
+                "$ch",
+                x,
+                size.height - 4.dp.toPx(),
+                android.graphics.Paint().apply {
+                    color = android.graphics.Color.GRAY
+                    textSize = 9.dp.toPx()
+                    textAlign = android.graphics.Paint.Align.CENTER
+                }
+            )
+        }
+
+        // ── Draw parabolic curves for each network ──
+        val grouped = networks.groupBy { frequencyToChannel(it.frequency) }
+        var colorIndex = 0
+
+        grouped.forEach { (ch, results) ->
+            val x = chartPadding + ((ch - minCh).toFloat() / chRange) * chartWidth
+            val curveColor = colors[colorIndex % colors.size]
+            colorIndex++
+
+            results.forEach { result ->
+                val normalizedRssi = ((result.level.toFloat() - minSignal) / signalRange)
+                    .coerceIn(0.05f, 1f)
+                val peakY = topPadding + chartHeight * (1f - normalizedRssi)
+
+                // Draw gaussian-like curve
+                val path = androidx.compose.ui.graphics.Path()
+                val curveWidth = chartWidth * 0.15f
+                val steps = 40
+
+                for (i in 0..steps) {
+                    val t = i.toFloat() / steps
+                    val dx = (t - 0.5f) * 2f * curveWidth
+                    val curveX = x + dx
+                    if (curveX < chartPadding || curveX > size.width - 8.dp.toPx()) continue
+
+                    // Gaussian: y = peak * exp(-dx² / (2*σ²))
+                    val sigma = curveWidth * 0.35f
+                    val gaussianY = normalizedRssi * kotlin.math.exp(-(dx * dx) / (2f * sigma * sigma))
+                    val curveY = topPadding + chartHeight * (1f - gaussianY)
+
+                    if (i == 0) path.moveTo(curveX, curveY)
+                    else path.lineTo(curveX, curveY)
+                }
+
+                drawPath(
+                    path = path,
+                    color = curveColor.copy(alpha = 0.6f),
+                    style = Stroke(width = 2f, cap = StrokeCap.Round)
+                )
+
+                // Draw peak dot
+                drawCircle(
+                    color = curveColor,
+                    radius = 3f,
+                    center = Offset(x, peakY)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpectrumLegendItem(result: android.net.wifi.ScanResult) {
+    @Suppress("DEPRECATION")
+    val ssid = result.SSID.ifEmpty { "(HiddenSSID)" }
+    val channel = frequencyToChannel(result.frequency)
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Signal strength bar
+            val level = rssiToLevel(result.level)
+            val color = when {
+                level >= 3 -> Color(0xFF00C853)
+                level >= 2 -> Color(0xFFFFD600)
+                else -> Color(0xFFD50000)
+            }
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(24.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(color)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(ssid, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text("${result.level} dBm", fontSize = 12.sp, color = color, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.width(6.dp))
+            Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFF1565C0).copy(alpha = 0.12f)) {
+                Text(
+                    "CH $channel",
+                    fontSize = 10.sp, fontWeight = FontWeight.Medium,
+                    color = Color(0xFF1565C0),
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                )
+            }
+        }
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  Best Channels Tab — recommendations & channel analysis
+// ──────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BestChannelsTab(
+    bestChannels: List<BestChannelResult>,
+    @Suppress("UNUSED_PARAMETER") channelAnalysis: List<ChannelAnalysis>,
+    connectionInfo: ConnectionInfo?,
+    bandFilter: BandFilter,
+    onBandFilterChange: (BandFilter) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Band selector
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            BandFilter.entries.forEach { band ->
+                FilterChip(
+                    selected = bandFilter == band,
+                    onClick = { onBandFilterChange(band) },
+                    label = { Text(band.label, fontSize = 11.sp) },
+                    modifier = Modifier.height(28.dp),
+                    shape = RoundedCornerShape(6.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (bestChannels.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.WifiOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Không có dữ liệu quét", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                }
+            }
+            return@Column
+        }
+
+        // ── Best Channel Recommendation Card ──
+        val topChannel = bestChannels.firstOrNull()
+        if (topChannel != null) {
+            val scoreColor = when {
+                topChannel.score >= 80 -> Color(0xFF7C4DFF)
+                topChannel.score >= 60 -> Color(0xFF00BCD4)
+                topChannel.score >= 40 -> Color(0xFFFFD600)
+                else -> Color(0xFFD50000)
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = scoreColor.copy(alpha = 0.1f)
+                ),
+                border = BorderStroke(1.5.dp, scoreColor.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Score circle
+                    Box(
+                        modifier = Modifier.size(64.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            progress = { topChannel.score / 100f },
+                            modifier = Modifier.fillMaxSize(),
+                            color = scoreColor,
+                            strokeWidth = 4.dp,
+                            trackColor = scoreColor.copy(alpha = 0.2f)
+                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                "${topChannel.score}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = scoreColor
+                            )
+                            Text(
+                                "%",
+                                fontSize = 10.sp,
+                                color = scoreColor.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "KÊNH TỐT NHẤT",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            color = scoreColor
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Channel ${topChannel.channel}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
+                            color = scoreColor
+                        )
+                        Text(
+                            "${topChannel.label} · ${topChannel.score}%",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = scoreColor.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            topChannel.description,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── Current Connection Card ──
+            connectionInfo?.let { conn ->
+                val connectedChannel = frequencyToChannel(conn.frequency)
+                val connectedScore = bestChannels.find { it.channel == connectedChannel }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF00C853).copy(alpha = 0.08f)
+                    ),
+                    border = BorderStroke(1.dp, Color(0xFF00C853).copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.NetworkCheck,
+                            contentDescription = null,
+                            tint = Color(0xFF00C853),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "BẠN ĐANG KẾT NỐI Ở ĐÂY",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp,
+                                color = Color(0xFF00C853)
+                            )
+                            Text(
+                                conn.ssid,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                "Channel $connectedChannel · Tín hiệu ${conn.rssi} dBm",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+
+                        // Score for current channel
+                        if (connectedScore != null) {
+                            val switchText = if (topChannel.channel != connectedChannel) {
+                                "Chuyển lên CH ${topChannel.channel} có thể cải thiện nhiễu."
+                            } else ""
+                            if (switchText.isNotEmpty()) {
+                                Text(
+                                    switchText,
+                                    fontSize = 10.sp,
+                                    color = Color(0xFFFF6D00),
+                                    modifier = Modifier.width(120.dp),
+                                    textAlign = TextAlign.End,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ── ALL Channels List ──
+        Text(
+            text = "TẤT CẢ KÊNH",
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+
+        bestChannels.take(10).forEach { channel ->
+            val isBest = channel == topChannel
+            val isConnected = connectionInfo?.let {
+                frequencyToChannel(it.frequency) == channel.channel
+            } ?: false
+
+            val scoreColor = when {
+                channel.score >= 80 -> Color(0xFF7C4DFF)
+                channel.score >= 60 -> Color(0xFF00BCD4)
+                channel.score >= 40 -> Color(0xFFFFD600)
+                else -> Color(0xFFD50000)
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+                shape = RoundedCornerShape(10.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = when {
+                        isBest -> scoreColor.copy(alpha = 0.05f)
+                        isConnected -> Color(0xFF00C853).copy(alpha = 0.05f)
+                        else -> MaterialTheme.colorScheme.surface
+                    }
+                ),
+                border = if (isBest) BorderStroke(1.dp, scoreColor.copy(alpha = 0.3f)) else null
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Channel number
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(44.dp)) {
+                        Text(
+                            "CH ${channel.channel}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = if (isBest) scoreColor else MaterialTheme.colorScheme.onSurface
+                        )
+                        if (isBest) {
+                            Text(
+                                "★ Tốt nhất",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = scoreColor
+                            )
+                        }
+                        if (isConnected && !isBest) {
+                            Text(
+                                "Đã kết nối",
+                                fontSize = 7.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00C853)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Score bar
+                    Box(
+                        modifier = Modifier.weight(1f).height(10.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxHeight()
+                                .fillMaxWidth(channel.score / 100f)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(scoreColor)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Score percentage
+                    Text(
+                        "${channel.score}%",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = scoreColor,
+                        modifier = Modifier.width(36.dp),
+                        textAlign = TextAlign.End
+                    )
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    // Label
+                    Text(
+                        channel.label,
+                        fontSize = 11.sp,
+                        color = scoreColor,
+                        modifier = Modifier.width(64.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  Access Points Tab — detailed AP list with signal gauges inline
+// ──────────────────────────────────────────────────────────────────
+
+@Composable
+private fun AccessPointsTab(
+    networks: List<WiFiNetwork>,
+    selectedNetwork: WiFiNetwork?,
+    onNetworkClick: (WiFiNetwork) -> Unit
+) {
+    if (networks.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    Icons.Default.WifiOff,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "Không tìm thấy mạng WiFi",
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(networks, key = { it.bssid + it.ssid }) { network ->
+            AccessPointCard(
+                network = network,
+                isSelected = selectedNetwork?.bssid == network.bssid,
+                onClick = { onNetworkClick(network) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccessPointCard(
+    network: WiFiNetwork,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val (qualityLabel, qualityColor) = getSignalQuality(network.rssi)
+    val level = rssiToLevel(network.rssi)
+    val securityType = getSecurityType(network.capabilities)
+    val channel = frequencyToChannel(network.frequency)
+    val (wifiGen, wifiGenColor) = getWifiGeneration(network.capabilities)
+    val channelWidth = getChannelWidth(network.capabilities)
+    val distance = estimateDistance(network.rssi, network.frequency)
+    val distanceLabel = getDistanceLabel(distance)
+    val manufacturer = getManufacturer(network.bssid)
+
+    // Normalized signal for gauge
+    val normalizedSignal = ((network.rssi + 100f) / 70f).coerceIn(0f, 1f)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 4.dp else 1.dp
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // ── Signal Gauge (mini circular) ──
+            Box(
+                modifier = Modifier.size(56.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val radius = size.minDimension / 2f - 4f
+                    val sweep = 240f
+                    val startAngle = 150f
+
+                    // Background arc
+                    drawArc(
+                        color = Color(0xFF333333),
+                        startAngle = startAngle,
+                        sweepAngle = sweep,
+                        useCenter = false,
+                        topLeft = Offset(center.x - radius, center.y - radius),
+                        size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                        style = Stroke(width = 5f, cap = StrokeCap.Round)
+                    )
+
+                    // Signal arc
+                    val signalSweep = sweep * normalizedSignal
+                    val signalColor = when {
+                        normalizedSignal >= 0.7f -> Color(0xFF00C853)
+                        normalizedSignal >= 0.4f -> Color(0xFFFFD600)
+                        else -> Color(0xFFD50000)
+                    }
+                    drawArc(
+                        color = signalColor,
+                        startAngle = startAngle,
+                        sweepAngle = signalSweep,
+                        useCenter = false,
+                        topLeft = Offset(center.x - radius, center.y - radius),
+                        size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                        style = Stroke(width = 5f, cap = StrokeCap.Round)
+                    )
+
+                    // Needle
+                    val needleAngle = startAngle + signalSweep
+                    val needleRad = Math.toRadians(needleAngle.toDouble())
+                    val needleLen = radius - 2f
+                    drawLine(
+                        color = signalColor,
+                        start = center,
+                        end = Offset(
+                            center.x + (needleLen * cos(needleRad)).toFloat(),
+                            center.y + (needleLen * sin(needleRad)).toFloat()
+                        ),
+                        strokeWidth = 2f,
+                        cap = StrokeCap.Round
+                    )
+                }
+
+                // Center text (dBm)
+                Text(
+                    text = "${network.rssi}",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = qualityColor
+                )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // ── Info section ──
+            Column(modifier = Modifier.weight(1f)) {
+                // SSID row
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val ssidColor = if (network.ssid.startsWith("(") || network.ssid.isEmpty())
+                        Color(0xFFFF6D00) else MaterialTheme.colorScheme.onSurface
+                    Text(
+                        text = network.ssid.ifEmpty { "(HiddenSSID)" },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = ssidColor,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                // Details row: MAC · distance · channel
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = network.bssid.take(17),
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                    Text(
+                        text = " · $distanceLabel",
+                        fontSize = 10.sp,
+                        color = Color(0xFF00BCD4),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                // Badges row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // WiFi Generation badge
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = wifiGenColor.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = wifiGen,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = wifiGenColor,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+
+                    // Channel badge
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFF00BCD4).copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = "${network.frequency}MHz (${channelWidth}MHz) · CH $channel",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF00BCD4),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+
+                    // Security badge
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFF1565C0).copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = securityType,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF1565C0),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+
+                    // Manufacturer badge
+                    if (manufacturer != null) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFFF6D00).copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "[$manufacturer]",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFFF6D00),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Quality and speed row
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = qualityLabel,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = qualityColor
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // Signal bars
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        for (i in 0..3) {
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .height(if (i == 0) 6.dp else (6 + i * 3).dp)
+                                    .clip(RoundedCornerShape(1.dp))
+                                    .background(
+                                        if (i < level) qualityColor
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
