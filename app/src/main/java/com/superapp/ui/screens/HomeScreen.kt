@@ -37,10 +37,10 @@ data class AppCategory(
 
 val homeCategories = listOf(
     AppCategory(
-        "tools", "Công Cụ", "5 tiện ích đa năng",
+        "tools", "Công Cụ", "6 tiện ích đa năng",
         Icons.Default.BuildCircle,
         listOf(Color(0xFF6C63FF), Color(0xFFE040FB)),
-        5, "tools_gallery"
+        6, "tools_gallery"
     )
 )
 
@@ -58,7 +58,8 @@ val recentToolMap = mapOf(
     "converter" to RecentToolInfo("Đổi Đơn Vị", Icons.Default.SwapHoriz, Color(0xFFFFA07A)),
     "qr" to RecentToolInfo("Mã QR", Icons.Default.QrCode, Color(0xFF7C4DFF)),
     "stopwatch" to RecentToolInfo("Bấm Giờ", Icons.Default.Timer, Color(0xFFFFD93D)),
-    "flashlight" to RecentToolInfo("Đèn Pin", Icons.Default.FlashlightOn, Color(0xFF00BCD4))
+    "flashlight" to RecentToolInfo("Đèn Pin", Icons.Default.FlashlightOn, Color(0xFF00BCD4)),
+    "wifi_analyzer" to RecentToolInfo("WiFi Analyzer", Icons.Default.Wifi, Color(0xFF1A237E))
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

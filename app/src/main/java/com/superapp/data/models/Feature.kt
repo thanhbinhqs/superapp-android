@@ -55,6 +55,14 @@ object Features {
             icon = Icons.Default.FlashlightOn,
             colors = listOf(Color(0xFF00BCD4), Color(0xFF0097A7)),
             route = "flashlight"
+        ),
+        Feature(
+            id = "wifi",
+            title = "WiFi Analyzer",
+            description = "Phân tích mạng WiFi, cường độ tín hiệu, nhiễu kênh",
+            icon = Icons.Default.Wifi,
+            colors = listOf(Color(0xFF1A237E), Color(0xFF283593)),
+            route = "wifi_analyzer"
         )
     )
 }

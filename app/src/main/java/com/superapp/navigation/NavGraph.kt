@@ -15,6 +15,7 @@ object Routes {
     const val QR = "qr"
     const val STOPWATCH = "stopwatch"
     const val FLASHLIGHT = "flashlight"
+    const val WIFI_ANALYZER = "wifi_analyzer"
 }
 
 @Composable
@@ -45,6 +46,9 @@ fun AppNavGraph(
         }
         composable(Routes.FLASHLIGHT) {
             FlashlightScreen(navController = navController)
+        }
+        composable(Routes.WIFI_ANALYZER) {
+            WiFiAnalyzerScreen(navController = navController)
         }
     }
 }
