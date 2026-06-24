@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Siêu Ứng Dụng</string>
+    <string name="calculator">Máy Tính</string>
+    <string name="notes">Ghi Chú</string>
+    <string name="todo">Công Việc</string>
+    <string name="unit_converter">Đổi Đơn Vị</string>
+    <string name="qr_generator">Mã QR</string>
+    <string name="stopwatch">Bấm Giờ</string>
+    <string name="flashlight">Đèn Pin</string>
+</resources>
