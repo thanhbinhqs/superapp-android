@@ -27,3 +27,6 @@ local.properties
 # Gradle
 .gradle/
 build/
+
+# Environment
+.env

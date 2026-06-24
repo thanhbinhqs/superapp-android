@@ -25,22 +25,6 @@ object Features {
             route = "calculator"
         ),
         Feature(
-            id = "notes",
-            title = "Ghi Chú",
-            description = "Lưu giữ ý tưởng và thông tin quan trọng",
-            icon = Icons.Default.NoteAlt,
-            colors = listOf(Color(0xFFFF6B6B), Color(0xFFEE5A24)),
-            route = "notes"
-        ),
-        Feature(
-            id = "todo",
-            title = "Công Việc",
-            description = "Quản lý danh sách việc cần làm",
-            icon = Icons.Default.Checklist,
-            colors = listOf(Color(0xFF4ECDC4), Color(0xFF2ECC71)),
-            route = "todo"
-        ),
-        Feature(
             id = "converter",
             title = "Đổi Đơn Vị",
             description = "Chuyển đổi đơn vị đo lường dễ dàng",

@@ -36,7 +36,7 @@ fun ToolsGalleryScreen(navController: NavController) {
                 title = {
                     Column {
                         Text("Công Cụ", fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                        Text("7 tiện ích đa năng", fontSize = 13.sp,
+                        Text("5 tiện ích đa năng", fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     }
                 },

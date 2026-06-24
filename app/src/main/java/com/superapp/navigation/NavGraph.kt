@@ -11,8 +11,6 @@ object Routes {
     const val HOME = "home"
     const val TOOLS_GALLERY = "tools_gallery"
     const val CALCULATOR = "calculator"
-    const val NOTES = "notes"
-    const val TODO = "todo"
     const val CONVERTER = "converter"
     const val QR = "qr"
     const val STOPWATCH = "stopwatch"
@@ -35,12 +33,6 @@ fun AppNavGraph(
         }
         composable(Routes.CALCULATOR) {
             CalculatorScreen(navController = navController)
-        }
-        composable(Routes.NOTES) {
-            NotesScreen(navController = navController)
-        }
-        composable(Routes.TODO) {
-            TodoScreen(navController = navController)
         }
         composable(Routes.CONVERTER) {
             UnitConverterScreen(navController = navController)

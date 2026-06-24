@@ -37,10 +37,10 @@ data class AppCategory(
 
 val homeCategories = listOf(
     AppCategory(
-        "tools", "Công Cụ", "7 tiện ích đa năng",
+        "tools", "Công Cụ", "5 tiện ích đa năng",
         Icons.Default.BuildCircle,
         listOf(Color(0xFF6C63FF), Color(0xFFE040FB)),
-        7, "tools_gallery"
+        5, "tools_gallery"
     )
 )
 
@@ -55,8 +55,6 @@ object RecentTools {
 data class RecentToolInfo(val title: String, val icon: ImageVector, val color: Color)
 val recentToolMap = mapOf(
     "calculator" to RecentToolInfo("Máy Tính", Icons.Default.Calculate, Color(0xFF6C63FF)),
-    "notes" to RecentToolInfo("Ghi Chú", Icons.Default.NoteAlt, Color(0xFFFF6B6B)),
-    "todo" to RecentToolInfo("Công Việc", Icons.Default.Checklist, Color(0xFF4ECDC4)),
     "converter" to RecentToolInfo("Đổi Đơn Vị", Icons.Default.SwapHoriz, Color(0xFFFFA07A)),
     "qr" to RecentToolInfo("Mã QR", Icons.Default.QrCode, Color(0xFF7C4DFF)),
     "stopwatch" to RecentToolInfo("Bấm Giờ", Icons.Default.Timer, Color(0xFFFFD93D)),
