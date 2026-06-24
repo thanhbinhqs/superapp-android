@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import java.net.InetAddress
 import java.net.NetworkInterface
 import kotlin.math.*
@@ -172,14 +173,14 @@ private fun signalGradient(rssi: Int): Pair<Color, Color> {
  */
 private fun getDeviceIpAddress(): String {
     try {
-        val interfaces = NetworkInterface.getNetworkInterfaces()
+        val interfaces = NetworkInterface.getNetworkInterfaces() ?: return "N/A"
         while (interfaces.hasMoreElements()) {
             val networkInterface = interfaces.nextElement()
-            if (!networkInterface.isUp || networkInterface.isLoopback) continue
-            val addresses = networkInterface.inetAddresses
+            if (networkInterface == null || !networkInterface.isUp || networkInterface.isLoopback) continue
+            val addresses = networkInterface.inetAddresses ?: continue
             while (addresses.hasMoreElements()) {
-                val addr = addresses.nextElement()
-                if (!addr.isLoopbackAddress && addr is InetAddress) {
+                val addr = addresses.nextElement() ?: continue
+                if (!addr.isLoopbackAddress) {
                     val ip = addr.hostAddress ?: continue
                     if (ip.contains('.')) return ip
                 }
@@ -254,12 +255,23 @@ fun WiFiAnalyzerScreen(navController: NavController) {
     LaunchedEffect(isScanning, hasLocationPermission) {
         if (!isScanning || !hasLocationPermission) return@LaunchedEffect
         val wm = wifiManager ?: return@LaunchedEffect
+        if (!isActive) return@LaunchedEffect
 
-        while (true) {
+        while (isActive) {
+            // Re-check permission on each cycle (user may revoke mid-session)
+            val stillHasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED
+            } else {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            }
+            if (!stillHasPermission || !isScanning) break
+
             try {
-                // Start a scan
-                @Suppress("DEPRECATION")
-                val started = wm.startScan()
+                // Start a scan — on API 33+ use new API, fallback to old
+                val started = try {
+                    @Suppress("DEPRECATION")
+                    wm.startScan()
+                } catch (_: SecurityException) { false }
                 if (!started) {
                     // Scan rate limited; will succeed eventually
                 }
