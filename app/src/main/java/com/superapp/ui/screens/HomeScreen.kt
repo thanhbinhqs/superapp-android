@@ -25,6 +25,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 data class AppCategory(
     val id: String,
@@ -45,11 +47,18 @@ val homeCategories = listOf(
     )
 )
 
-// Recently used (stored in companion for persistence across nav)
+// Recently used (stored in object for persistence across nav)
 object RecentTools {
     private val _recent = mutableListOf<String>()
+    private var _version = 0
     fun getAll() = _recent.toList()
-    fun add(route: String) { _recent.remove(route); _recent.add(0, route); if (_recent.size > 4) _recent.removeAt(_recent.lastIndex) }
+    fun getVersion() = _version
+    fun add(route: String) {
+        _recent.remove(route)
+        _recent.add(0, route)
+        if (_recent.size > 4) _recent.removeAt(_recent.lastIndex)
+        _version++
+    }
 }
 
 // Map route to feature info for recent display
@@ -66,7 +75,19 @@ val recentToolMap = mapOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
-    val recent = remember { RecentTools.getAll() }
+    var recentVersion by remember { mutableIntStateOf(0) }
+
+    // Watch for changes to RecentTools (fix: remember caches initial value)
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            val v = RecentTools.getVersion()
+            if (v != recentVersion) {
+                recentVersion = v
+            }
+            delay(300) // poll every 300ms
+        }
+    }
+    val currentRecent = remember(recentVersion) { RecentTools.getAll() }
 
     Scaffold(
         topBar = {
@@ -106,7 +127,7 @@ fun HomeScreen(navController: NavController) {
             }
 
             // === Quick Access (recent) ===
-            if (recent.isNotEmpty()) {
+            if (currentRecent.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -121,7 +142,7 @@ fun HomeScreen(navController: NavController) {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(recent) { route ->
+                    items(currentRecent) { route ->
                         val info = recentToolMap[route]
                         if (info != null) {
                             RecentToolChip(

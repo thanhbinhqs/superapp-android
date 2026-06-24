@@ -135,7 +135,7 @@ fun QRGeneratorScreen(navController: NavController) {
             val h = bitMatrix.height
             val fg = foregroundColor.toArgb()
             val bg = backgroundColor.toArgb()
-            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565)
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             for (x in 0 until w) {
                 for (y in 0 until h) {
                     bmp.setPixel(x, y, if (bitMatrix[x, y]) fg else bg)

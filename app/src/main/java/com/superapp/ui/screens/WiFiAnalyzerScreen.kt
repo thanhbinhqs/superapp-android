@@ -232,16 +232,17 @@ fun WiFiAnalyzerScreen(navController: NavController) {
 
         // Check permissions
         val permissionsNeeded = mutableListOf<String>()
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            permissionsNeeded.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.NEARBY_WIFI_DEVICES)
                 != PackageManager.PERMISSION_GRANTED
             ) {
                 permissionsNeeded.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+            }
+        } else {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                permissionsNeeded.add(Manifest.permission.ACCESS_FINE_LOCATION)
             }
         }
         if (permissionsNeeded.isNotEmpty()) {
@@ -504,15 +505,15 @@ fun WiFiAnalyzerScreen(navController: NavController) {
                         Button(
                             onClick = {
                                 permissionDenied = false
-                                val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    arrayOf(
-                                        Manifest.permission.NEARBY_WIFI_DEVICES,
-                                        Manifest.permission.ACCESS_FINE_LOCATION
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    permissionLauncher.launch(
+                                        arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
                                     )
                                 } else {
-                                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                                    permissionLauncher.launch(
+                                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                                    )
                                 }
-                                permissionLauncher.launch(permissions)
                             }
                         ) {
                             Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
