@@ -204,17 +204,17 @@ fun WiFiAnalyzerScreen(navController: NavController) {
     var sortMode by remember { mutableStateOf(SortMode.BY_SIGNAL) }
     var searchQuery by remember { mutableStateOf("") }
     var isScanning by remember { mutableStateOf(true) }
-    var hasPermission by remember { mutableStateOf(false) }
+    var hasLocationPermission by remember { mutableStateOf(false) }
+    var permissionDenied by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     // ── Permission launcher ──
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        hasPermission = permissions.values.all { it }
-        if (!hasPermission) {
-            errorMessage = "Cần quyền truy cập vị trí để quét WiFi"
-        }
+    ) { results ->
+        val allGranted = results.values.all { it }
+        hasLocationPermission = allGranted
+        permissionDenied = !allGranted
     }
 
     // ── Init WifiManager & check permissions ──
@@ -244,13 +244,13 @@ fun WiFiAnalyzerScreen(navController: NavController) {
         if (permissionsNeeded.isNotEmpty()) {
             permissionLauncher.launch(permissionsNeeded.toTypedArray())
         } else {
-            hasPermission = true
+            hasLocationPermission = true
         }
     }
 
     // ── Scanning coroutine ──
-    LaunchedEffect(isScanning, hasPermission) {
-        if (!isScanning || !hasPermission) return@LaunchedEffect
+    LaunchedEffect(isScanning, hasLocationPermission) {
+        if (!isScanning || !hasLocationPermission) return@LaunchedEffect
         val wm = wifiManager ?: return@LaunchedEffect
 
         while (true) {
@@ -450,6 +450,94 @@ fun WiFiAnalyzerScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // ── Permission denied screen ──
+            if (permissionDenied && errorMessage != "Thiết bị không hỗ trợ WiFi") {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationSearching,
+                            contentDescription = null,
+                            modifier = Modifier.size(72.dp),
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Cần quyền truy cập WiFi",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Không thể phân tích WiFi nếu không cấp quyền",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(
+                            onClick = {
+                                permissionDenied = false
+                                val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    arrayOf(
+                                        Manifest.permission.NEARBY_WIFI_DEVICES,
+                                        Manifest.permission.ACCESS_FINE_LOCATION
+                                    )
+                                } else {
+                                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                                }
+                                permissionLauncher.launch(permissions)
+                            }
+                        ) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Cấp quyền")
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = {
+                                val intent = android.content.Intent(
+                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                                ).apply {
+                                    data = android.net.Uri.fromParts("package", context.packageName, null)
+                                }
+                                context.startActivity(intent)
+                            }
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Mở Cài Đặt")
+                        }
+                    }
+                }
+                return@Column
+            }
+
+            // ── Permission loading ──
+            if (!hasLocationPermission && !permissionDenied && errorMessage != "Thiết bị không hỗ trợ WiFi") {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Đang xin quyền...",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+                return@Column
+            }
+
             // ── Error message ──
             if (errorMessage != null) {
                 Surface(
