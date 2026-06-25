@@ -447,6 +447,39 @@ private fun findBestChannels(
     return results.sortedByDescending { it.score }
 }
 
+// ── Mock data for emulator ──
+
+@Suppress("DEPRECATION")
+private fun createMockScanResults(): List<ScanResult> {
+    fun makeScanResult(ssid: String, bssid: String, level: Int, freq: Int, caps: String): ScanResult {
+        val sr = ScanResult()
+        sr.SSID = ssid
+        sr.BSSID = bssid
+        sr.level = level
+        sr.frequency = freq
+        sr.capabilities = caps
+        sr.timestamp = System.currentTimeMillis() * 1000L
+        return sr
+    }
+
+    return listOf(
+        // BINH_5G AP1 — strong signal, channel 36
+        makeScanResult("BINH_5G", "08:40:f3:fd:2b:d1", -52, 5180, "[WPA2-PSK-CCMP][WPA3-SAE][RSN-VHT-80]"),
+        // HiddenSSID AP1 — ch36
+        makeScanResult("", "08:40:f3:fd:2b:d0", -63, 5180, "[WPA2-PSK-CCMP][RSN-VHT-80]"),
+        // BINH_5G AP2 — channel 44
+        makeScanResult("BINH_5G", "08:40:f3:fd:35:c1", -65, 5220, "[WPA2-PSK-CCMP][RSN-VHT-80]"),
+        // HiddenSSID AP2 — channel 48
+        makeScanResult("", "08:40:f3:fd:35:c0", -81, 5240, "[WPA2-PSK-CCMP][RSN-VHT-80]"),
+        // BINH_5G AP3 — weak signal, channel 52
+        makeScanResult("BINH_5G", "08:40:f3:fd:36:21", -77, 5260, "[WPA2-PSK-CCMP][RSN-VHT-80]"),
+        // Some 2.4GHz networks for variety
+        makeScanResult("BINH_2G", "08:40:f3:fd:2b:d2", -45, 2437, "[WPA2-PSK-CCMP][RSN-HT-40]"),
+        makeScanResult("Nha Ben Canh", "ac:84:c6:12:34:56", -72, 2412, "[WPA2-PSK-CCMP]"),
+        makeScanResult("Viettel_5G_ABC", "0a:1b:2c:3d:4e:5f", -78, 5500, "[WPA2-PSK-CCMP][RSN-VHT-80]"),
+    )
+}
+
 // ── Composable ──
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -565,10 +598,17 @@ fun WiFiAnalyzerScreen(navController: NavController) {
             // Filter and deduplicate results
             val connectedBssid = connectionInfo?.bssid ?: ""
             @Suppress("DEPRECATION")
-            scanResults = results
+            val filteredResults = results
                 .filter { it.SSID.isNotEmpty() }
                 .distinctBy { it.BSSID }
                 .sortedByDescending { it.level }
+
+            // Use mock data on emulator when no real scan results
+            scanResults = if (filteredResults.isEmpty() && results.isEmpty() && connectedBssid.isNotEmpty()) {
+                createMockScanResults()
+            } else {
+                filteredResults
+            }
 
             // If selected network is no longer in results, clear selection
             if (selectedNetwork != null) {
@@ -685,6 +725,8 @@ fun WiFiAnalyzerScreen(navController: NavController) {
             AnalyzerTab.CHANNEL_GRAPH -> {
                 ChannelGraphTab(
                     channelData = channelData,
+                    networks = spectrumNetworks,
+                    connectionInfo = connectionInfo,
                     bandFilter = bandFilter,
                     onBandFilterChange = { bandFilter = it }
                 )
@@ -2650,6 +2692,8 @@ private fun AccessPointCard(
 @Composable
 private fun ChannelGraphTab(
     channelData: Map<Int, Int>,
+    networks: List<android.net.wifi.ScanResult>,
+    connectionInfo: ConnectionInfo?,
     bandFilter: BandFilter,
     onBandFilterChange: (BandFilter) -> Unit
 ) {
@@ -2662,23 +2706,45 @@ private fun ChannelGraphTab(
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Title
-        Text(
-            text = "Phân bố Channel WiFi",
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        Text(
-            text = "Số lượng mạng trên mỗi channel — tìm channel ít nhiễu nhất",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-            modifier = Modifier.padding(start = 16.dp, top = 2.dp, end = 16.dp)
-        )
+        // Spectrum Card at top — show all networks as parabolic curves
+        if (networks.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Phổ Tín Hiệu",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = "Cường độ tín hiệu theo kênh (dBm)",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ChannelSpectrumCanvas(networks = networks)
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
 
-        Spacer(modifier = Modifier.height(12.dp))
+            // Legend
+            Text(
+                text = "Mạng phát hiện",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            networks.take(8).forEach { result ->
+                ChannelLegendItem(result = result)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
-        // Channel graph card
+        // Channel distribution card
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2687,6 +2753,19 @@ private fun ChannelGraphTab(
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Phân bố Channel WiFi",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = "Số lượng mạng trên mỗi channel",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 // Band filter inside graph
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2703,13 +2782,13 @@ private fun ChannelGraphTab(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 if (channelData.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp),
+                            .height(160.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -2720,19 +2799,6 @@ private fun ChannelGraphTab(
                 } else {
                     // Bar Chart using Canvas
                     ChannelBarChart(channelData = channelData)
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Find least congested channels
-                    val leastCongested = channelData.minByOrNull { it.value }
-                    Text(
-                        text = if (leastCongested != null) {
-                            "✨ Channel ít nhiễu nhất: CH ${leastCongested.key} (${leastCongested.value} mạng)"
-                        } else "",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF00C853)
-                    )
                 }
             }
         }
@@ -2764,6 +2830,175 @@ private fun ChannelGraphTab(
 
         Spacer(modifier = Modifier.height(24.dp))
     }
+}
+
+// ── Spectrum Canvas for Channel Graph ──
+
+@Composable
+private fun ChannelSpectrumCanvas(networks: List<android.net.wifi.ScanResult>) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onSurface = MaterialTheme.colorScheme.onSurface
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+    ) {
+        val w = size.width
+        val h = size.height
+        val paddingLeft = 40.dp.toPx()
+        val paddingRight = 12.dp.toPx()
+        val paddingTop = 12.dp.toPx()
+        val paddingBottom = 30.dp.toPx()
+        val chartW = w - paddingLeft - paddingRight
+        val chartH = h - paddingTop - paddingBottom
+
+        // Determine frequency range
+        val freqs = networks.map { it.frequency }.filter { it > 0 }
+        if (freqs.isEmpty()) return@Canvas
+        val minFreq = (freqs.min() - 20).coerceAtLeast(2400)
+        val maxFreq = (freqs.max() + 20).coerceAtMost(6000)
+        val freqRange = (maxFreq - minFreq).coerceAtLeast(1)
+
+        // Draw grid lines
+        val gridColor = Color(0xFF333333)
+        val steps = 6
+        for (i in 0..steps) {
+            val y = paddingTop + chartH * i / steps
+            drawLine(gridColor, Offset(paddingLeft, y), Offset(w - paddingRight, y), strokeWidth = 1f)
+            val dbm = -20 - (i * 70 / steps)
+            drawContext.canvas.nativeCanvas.drawText(
+                "$dbm", 2.dp.toPx(), y + 4.dp.toPx(),
+                android.graphics.Paint().apply {
+                    color = android.graphics.Color.GRAY
+                    textSize = 9.dp.toPx()
+                    textAlign = android.graphics.Paint.Align.LEFT
+                }
+            )
+        }
+
+        // Draw channel labels on X axis
+        val channels = networks.map { frequencyToChannel(it.frequency) }.distinct().sorted()
+        channels.forEach { ch ->
+            val freq = chToApproxFreq(ch)
+            val x = paddingLeft + (freq - minFreq).toFloat() / freqRange * chartW
+            drawContext.canvas.nativeCanvas.drawText(
+                "$ch", x - 8.dp.toPx(), h - 4.dp.toPx(),
+                android.graphics.Paint().apply {
+                    color = android.graphics.Color.GRAY
+                    textSize = 9.dp.toPx()
+                    textAlign = android.graphics.Paint.Align.LEFT
+                }
+            )
+        }
+
+        // Draw parabolic curves for each network
+        val colors = listOf(
+            Color(0xFFFF5252), Color(0xFFFF4081), Color(0xFFE040FB),
+            Color(0xFF7C4DFF), Color(0xFF448AFF), Color(0xFF00BCD4),
+            Color(0xFF00E676), Color(0xFFFFD740), Color(0xFFFF6E40),
+            Color(0xFFA1887F)
+        )
+
+        networks.forEachIndexed { idx, network ->
+            if (network.frequency <= 0) return@forEachIndexed
+            val col = colors[idx % colors.size]
+            val centerX = paddingLeft + (network.frequency - minFreq).toFloat() / freqRange * chartW
+            val normLevel = ((network.level.coerceIn(-90, -20) + 90).toFloat() / 70f).coerceIn(0.05f, 1f)
+            val curveHeight = chartH * normLevel * 0.9f
+            val curveWidth = chartW * 0.04f
+
+            val path = Path()
+            for (i in -20..20) {
+                val t = i / 20f
+                val px = centerX + t * curveWidth * 4
+                val py = paddingTop + chartH - curveHeight * exp(-t * t * 3f)
+                if (i == -20) path.moveTo(px, py) else path.lineTo(px, py)
+            }
+            drawPath(path, col.copy(alpha = 0.7f), style = Stroke(width = 2.dp.toPx()))
+        }
+    }
+}
+
+private fun chToApproxFreq(channel: Int): Int {
+    return when {
+        channel in 1..13 -> 2412 + (channel - 1) * 5
+        channel == 14 -> 2484
+        channel in 36..64 -> 5180 + (channel - 36) * 5
+        channel in 100..144 -> 5500 + (channel - 100) * 5
+        channel in 149..165 -> 5745 + (channel - 149) * 5
+        else -> 5180
+    }
+}
+
+@Composable
+private fun ChannelLegendItem(result: android.net.wifi.ScanResult) {
+    val ssid = result.SSID.ifEmpty { "(HiddenSSID)" }
+    val channel = frequencyToChannel(result.frequency)
+    val dist = rssiToDistance(result.level)
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Signal strength indicator
+            val signalColor = when {
+                result.level >= -50 -> Color(0xFF00C853)
+                result.level >= -70 -> Color(0xFFFFD600)
+                else -> Color(0xFFD50000)
+            }
+            val signalWidth = ((result.level.coerceIn(-90, -20) + 90) / 70f * 40 + 10).dp
+            Box(
+                modifier = Modifier
+                    .width(signalWidth)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(signalColor.copy(alpha = 0.7f))
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Text(
+                text = ssid,
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "${result.level} dBm",
+                fontSize = 12.sp,
+                color = signalColor
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "~${dist}m",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "CH $channel",
+                fontSize = 11.sp,
+                color = Color(0xFF00BCD4)
+            )
+        }
+    }
+}
+
+private fun rssiToDistance(rssi: Int): Int {
+    // Rough distance estimation
+    val txPower = -40 // typical TX power in dBm
+    val ratio = txPower.toDouble() - rssi
+    val distance = Math.pow(10.0, ratio / 20.0)
+    return distance.roundToInt().coerceIn(1, 100)
 }
 
 @Composable
