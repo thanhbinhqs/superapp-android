@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import com.superapp.navigation.Routes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import java.net.InetAddress
@@ -111,7 +112,7 @@ data class BestChannelResult(
 )
 
 // ── Manufacturer OUI database (common ones) ──
-private val OUI_MAP = mapOf(
+val OUI_MAP = mapOf(
     "08:40:f3" to "Tenda",
     "00:1a:6b" to "TP-Link",
     "00:1e:2a" to "TP-Link",
@@ -200,7 +201,7 @@ private val OUI_MAP = mapOf(
 /**
  * Convert RSSI (dBm) to signal level 0-4 (0 = very weak, 4 = excellent)
  */
-private fun rssiToLevel(rssi: Int): Int {
+fun rssiToLevel(rssi: Int): Int {
     return when {
         rssi >= -50 -> 4
         rssi >= -60 -> 3
@@ -213,7 +214,7 @@ private fun rssiToLevel(rssi: Int): Int {
 /**
  * Get channel number from frequency in MHz
  */
-private fun frequencyToChannel(freq: Int): Int {
+fun frequencyToChannel(freq: Int): Int {
     return when {
         freq in 2412..2484 -> (freq - 2412) / 5 + 1
         freq in 5170..5825 -> (freq - 5170) / 5 + 34
@@ -225,7 +226,7 @@ private fun frequencyToChannel(freq: Int): Int {
 /**
  * Get frequency band group from frequency in MHz
  */
-private fun getBandLabel(freq: Int): String {
+fun getBandLabel(freq: Int): String {
     return when {
         freq < 2500 -> "2.4 GHz"
         freq < 6000 -> "5 GHz"
@@ -236,7 +237,7 @@ private fun getBandLabel(freq: Int): String {
 /**
  * Get security type from capabilities string
  */
-private fun getSecurityType(capabilities: String): String {
+fun getSecurityType(capabilities: String): String {
     return when {
         capabilities.contains("WPA3", ignoreCase = true) -> "WPA3"
         capabilities.contains("WPA2", ignoreCase = true) -> "WPA2"
@@ -251,7 +252,7 @@ private fun getSecurityType(capabilities: String): String {
 /**
  * Get signal quality label and color
  */
-private fun getSignalQuality(rssi: Int): Pair<String, Color> {
+fun getSignalQuality(rssi: Int): Pair<String, Color> {
     return when {
         rssi >= -50 -> "Tuyệt vời" to Color(0xFF00C853)
         rssi >= -60 -> "Tốt" to Color(0xFF76FF03)
@@ -277,7 +278,7 @@ private fun signalGradient(rssi: Int): Pair<Color, Color> {
 /**
  * Get IP address from network interface
  */
-private fun getDeviceIpAddress(): String {
+fun getDeviceIpAddress(): String {
     try {
         val interfaces = NetworkInterface.getNetworkInterfaces() ?: return "N/A"
         while (interfaces.hasMoreElements()) {
@@ -299,7 +300,7 @@ private fun getDeviceIpAddress(): String {
 /**
  * Get manufacturer from BSSID (first 3 octets = OUI)
  */
-private fun getManufacturer(bssid: String): String? {
+fun getManufacturer(bssid: String): String? {
     if (bssid.length < 8) return null
     val oui = bssid.trim().uppercase().take(8)
     // Handle both XX:XX:XX and xxxx:xxxx:xxxx formats
@@ -312,7 +313,7 @@ private fun getManufacturer(bssid: String): String? {
 /**
  * Detect WiFi generation from capabilities string
  */
-private fun getWifiGeneration(capabilities: String): Pair<String, Color> {
+fun getWifiGeneration(capabilities: String): Pair<String, Color> {
     val cap = capabilities.uppercase()
     return when {
         cap.contains("WIFI6") || cap.contains("HE") || cap.contains("802.11AX") -> "WiFi 6" to Color(0xFF1565C0)
@@ -326,7 +327,7 @@ private fun getWifiGeneration(capabilities: String): Pair<String, Color> {
 /**
  * Estimate channel width from capabilities string (MHz)
  */
-private fun getChannelWidth(capabilities: String): Int {
+fun getChannelWidth(capabilities: String): Int {
     val cap = capabilities.uppercase()
     return when {
         cap.contains("VHT160") || cap.contains("160MHZ") -> 160
@@ -341,7 +342,7 @@ private fun getChannelWidth(capabilities: String): Int {
  * Estimate distance from signal strength (dBm) using free-space path loss model
  * Returns approximate distance in meters
  */
-private fun estimateDistance(rssi: Int, freqMHz: Int): Float {
+fun estimateDistance(rssi: Int, freqMHz: Int): Float {
     // Using simplified FSPL model: distance = 10^((TxPower - RSSI - 20*log10(f) + 27.55) / 20)
     // Assume TxPower = 20 dBm for typical router
     val txPower = 20.0
@@ -355,7 +356,7 @@ private fun estimateDistance(rssi: Int, freqMHz: Int): Float {
 /**
  * Get distance label in human-readable format
  */
-private fun getDistanceLabel(meters: Float): String {
+fun getDistanceLabel(meters: Float): String {
     return when {
         meters < 1f -> "<1m"
         meters < 10f -> "${meters.toInt()}m"
@@ -762,14 +763,16 @@ fun WiFiAnalyzerScreen(navController: NavController) {
                         selectedNetwork = if (selectedNetwork?.bssid == network.bssid) {
                             null
                         } else network
-                    }
+                    },
+                    navController = navController
                 )
             }
             AnalyzerTab.DETAILS -> {
                 DetailsTab(
                     selectedNetwork = selectedNetwork,
                     connectionInfo = connectionInfo,
-                    networks = networks
+                    networks = networks,
+                    navController = navController
                 )
             }
         }
@@ -2419,43 +2422,74 @@ private fun BestChannelsTab(
 private fun AccessPointsTab(
     networks: List<WiFiNetwork>,
     selectedNetwork: WiFiNetwork?,
-    onNetworkClick: (WiFiNetwork) -> Unit
+    onNetworkClick: (WiFiNetwork) -> Unit,
+    navController: NavController
 ) {
-    if (networks.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+    Column(modifier = Modifier.fillMaxSize()) {
+        // ── Header with scan button ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    Icons.Default.WifiOff,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    "Không tìm thấy mạng WiFi",
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                    fontWeight = FontWeight.Medium
-                )
+            Text(
+                text = "${networks.size} mạng WiFi",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                fontWeight = FontWeight.Medium
+            )
+            FilledTonalButton(
+                onClick = { navController.navigate(Routes.WIFI_SCAN) },
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Quét WiFi", fontSize = 13.sp)
             }
         }
-        return
-    }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(networks, key = { it.bssid + it.ssid }) { network ->
-            AccessPointCard(
-                network = network,
-                isSelected = selectedNetwork?.bssid == network.bssid,
-                onClick = { onNetworkClick(network) }
-            )
+        if (networks.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.WifiOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "Không tìm thấy mạng WiFi",
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(networks, key = { it.bssid + it.ssid }) { network ->
+                    AccessPointCard(
+                        network = network,
+                        isSelected = selectedNetwork?.bssid == network.bssid,
+                        onClick = { onNetworkClick(network) }
+                    )
+                }
+            }
         }
     }
 }
@@ -3000,7 +3034,7 @@ private fun ChannelLegendItem(result: android.net.wifi.ScanResult) {
     }
 }
 
-private fun rssiToDistance(rssi: Int): Int {
+fun rssiToDistance(rssi: Int): Int {
     // Rough distance estimation
     val txPower = -40 // typical TX power in dBm
     val ratio = txPower.toDouble() - rssi
@@ -3162,7 +3196,8 @@ private fun ChannelDetailRow(
 private fun DetailsTab(
     selectedNetwork: WiFiNetwork?,
     connectionInfo: ConnectionInfo?,
-    networks: List<WiFiNetwork>
+    networks: List<WiFiNetwork>,
+    navController: NavController
 ) {
     val scrollState = rememberScrollState()
 
@@ -3194,6 +3229,16 @@ private fun DetailsTab(
                     DetailRow("Cường độ tín hiệu", "${conn.rssi} dBm")
                     DetailRow("Chất lượng", getSignalQuality(conn.rssi).first)
                     DetailRow("Địa chỉ IP", conn.ipAddress)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { navController.navigate(Routes.WIFI_DETAIL) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Xem chi tiết đầy đủ", fontSize = 14.sp)
+                    }
                 }
             }
         }
@@ -3292,3 +3337,136 @@ private fun DetailRow(label: String, value: String) {
         )
     }
 }
+
+// ──────────────────────────────────────────────────────────────────
+//  WiFi Utility Functions (for screens in the same package)
+// ──────────────────────────────────────────────────────────────────
+
+/**
+ * Get network interface utilities
+ */
+fun getDeviceMacAddress(): String? {
+    return try {
+        val interfaces = java.net.NetworkInterface.getNetworkInterfaces() ?: return null
+        while (interfaces.hasMoreElements()) {
+            val networkInterface = interfaces.nextElement()
+            if (networkInterface.name == "wlan0" || networkInterface.name.startsWith("eth")) {
+                val mac = networkInterface.hardwareAddress ?: return null
+                return mac.joinToString(":") { "%02X".format(it) }
+            }
+        }
+        val interfaces2 = java.net.NetworkInterface.getNetworkInterfaces()
+        while (interfaces2.hasMoreElements()) {
+            val ni = interfaces2.nextElement()
+            if (!ni.isLoopback && !ni.isVirtual && ni.isUp) {
+                val mac = ni.hardwareAddress ?: continue
+                return mac.joinToString(":") { "%02X".format(it) }
+            }
+        }
+        null
+    } catch (_: Exception) { null }
+}
+
+fun getGatewayAddress(): String {
+    return try {
+        val cmd = java.lang.Runtime.getRuntime().exec("ip route")
+        val reader = java.io.BufferedReader(java.io.InputStreamReader(cmd.inputStream))
+        val line = reader.readLine()
+        val parts = line?.split(" ") ?: return "N/A"
+        if (parts.size >= 3) parts[2] else "N/A"
+    } catch (_: Exception) { "N/A" }
+}
+
+fun getDnsServers(): List<String> {
+    val dnsList = mutableListOf<String>()
+    try {
+        val cmd = java.lang.Runtime.getRuntime().exec("getprop")
+        val reader = java.io.BufferedReader(java.io.InputStreamReader(cmd.inputStream))
+        var line: String?
+        while (reader.readLine().also { line = it } != null) {
+            val l = line ?: continue
+            if (l.contains("net.dns") || l.contains("dhcp.*.dns")) {
+                val parts = l.split(": ")
+                if (parts.size >= 2) {
+                    val value = parts[1].trim('[', ']', ' ')
+                    if (value.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) {
+                        dnsList.add(value)
+                    }
+                }
+            }
+        }
+    } catch (_: Exception) { }
+    return dnsList.distinct()
+}
+
+@Suppress("DEPRECATION")
+fun android.net.wifi.WifiInfo.toConnectionInfo(): ConnectionInfo {
+    val ssidStr = this.ssid?.removeSurrounding("\"") ?: "<unknown ssid>"
+    val bssidStr = this.bssid ?: "N/A"
+    val ipLong = this.ipAddress.toLong()
+    val ipStr = try {
+        java.net.InetAddress.getByAddress(
+            byteArrayOf(
+                (ipLong and 0xFF).toByte(),
+                ((ipLong shr 8) and 0xFF).toByte(),
+                ((ipLong shr 16) and 0xFF).toByte(),
+                ((ipLong shr 24) and 0xFF).toByte()
+            )
+        ).hostAddress ?: "N/A"
+    } catch (_: Exception) { "N/A" }
+
+    return ConnectionInfo(
+        ssid = ssidStr,
+        bssid = bssidStr,
+        rssi = this.rssi,
+        linkSpeed = this.linkSpeed,
+        frequency = this.frequency,
+        ipAddress = ipStr
+    )
+}
+
+/**
+ * Convert ScanResult to WiFiNetwork data class
+ */
+fun scanResultToNetwork(result: android.net.wifi.ScanResult, connectedBssid: String = ""): WiFiNetwork {
+    val ssid = result.SSID.ifEmpty { "(Hidden SSID)" }
+    val isConnected = result.BSSID.equals(connectedBssid, ignoreCase = true)
+    return WiFiNetwork(
+        ssid = ssid,
+        bssid = result.BSSID,
+        rssi = result.level,
+        frequency = result.frequency,
+        capabilities = result.capabilities,
+        timestamp = result.timestamp,
+        isConnected = isConnected
+    )
+}
+
+/**
+ * Get band label (short form like "5 GHz") from frequency
+ */
+fun getBandFromFrequency(freq: Int): String {
+    return when {
+        freq < 2500 -> "2.4"
+        freq in 4900..6000 -> "5"
+        freq >= 5955 -> "6"
+        else -> "?"
+    }
+}
+
+/**
+ * WiFi generation detection with frequency context
+ */
+fun getWifiGeneration(capabilities: String, freqMHz: Int): Pair<String, Color> {
+    val cap = capabilities.uppercase()
+    val freqBand = freqMHz
+    return when {
+        cap.contains("WIFI6") || cap.contains("AX") || cap.contains("HE") -> "WiFi 6" to Color(0xFF2196F3)
+        cap.contains("WIFI7") || cap.contains("BE") || cap.contains("EHT") -> "WiFi 7" to Color(0xFF9C27B0)
+        cap.contains("AC") || cap.contains("VHT") || freqBand > 5000 -> "WiFi 5" to Color(0xFF4CAF50)
+        cap.contains("N") || cap.contains("HT") -> "WiFi 4" to Color(0xFFFF9800)
+        cap.contains("G") || cap.contains("OFDM") -> "WiFi 3" to Color(0xFF795548)
+        else -> "WiFi ?" to Color(0xFF9E9E9E)
+    }
+}
+

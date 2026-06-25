@@ -16,6 +16,8 @@ object Routes {
     const val STOPWATCH = "stopwatch"
     const val FLASHLIGHT = "flashlight"
     const val WIFI_ANALYZER = "wifi_analyzer"
+    const val WIFI_SCAN = "wifi_scan"
+    const val WIFI_DETAIL = "wifi_detail"
 }
 
 @Composable
@@ -49,6 +51,12 @@ fun AppNavGraph(
         }
         composable(Routes.WIFI_ANALYZER) {
             WiFiAnalyzerScreen(navController = navController)
+        }
+        composable(Routes.WIFI_SCAN) {
+            WiFiScanScreen(navController = navController)
+        }
+        composable(Routes.WIFI_DETAIL) {
+            WiFiDetailScreen(navController = navController)
         }
     }
 }
