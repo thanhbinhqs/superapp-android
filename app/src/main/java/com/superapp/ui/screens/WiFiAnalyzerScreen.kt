@@ -603,8 +603,15 @@ fun WiFiAnalyzerScreen(navController: NavController) {
                 .distinctBy { it.BSSID }
                 .sortedByDescending { it.level }
 
-            // Use mock data on emulator when no real scan results
-            scanResults = if (filteredResults.isEmpty() && results.isEmpty() && connectedBssid.isNotEmpty()) {
+            // Use mock data ONLY on emulator when no real scan results
+            val isEmulator = Build.BRAND?.lowercase()?.contains("generic") == true ||
+                Build.FINGERPRINT?.lowercase()?.contains("generic") == true ||
+                Build.PRODUCT?.lowercase()?.startsWith("sdk") == true ||
+                Build.MODEL?.lowercase()?.startsWith("sdk") == true ||
+                Build.MANUFACTURER?.lowercase()?.contains("google") == true && 
+                Build.FINGERPRINT?.lowercase()?.contains("sdk") == true
+
+            scanResults = if (filteredResults.isEmpty() && results.isEmpty() && isEmulator) {
                 createMockScanResults()
             } else {
                 filteredResults
